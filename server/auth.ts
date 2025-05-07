@@ -8,9 +8,18 @@ import { storage } from "./storage";
 import { User, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 
+// Extend Express.User interface with our User type
 declare global {
   namespace Express {
-    interface User extends User {}
+    interface User {
+      id: number;
+      username: string;
+      password: string;
+      name: string;
+      email: string;
+      phone: string;
+      createdAt: Date | null;
+    }
   }
 }
 
