@@ -9,6 +9,45 @@ import {
   insertTransactionSchema,
 } from "@shared/schema";
 import { z } from "zod";
+import { WebSocketServer, WebSocket } from 'ws';
+
+// Store connected clients with their user IDs for selective messaging
+const clients = new Map<string, WebSocket>();
+
+// Helper function to broadcast messages to all connected clients
+function broadcastMessage(type: string, payload: any) {
+  const message = JSON.stringify({ type, payload });
+  
+  clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
+// Helper function to send message to a specific user
+function sendToUser(userId: number, type: string, payload: any) {
+  const message = JSON.stringify({ type, payload });
+  
+  clients.forEach((client, id) => {
+    // Format can be "user-123" where 123 is the user ID
+    if (id === `user-${userId}` && client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
+// Helper function to send message to a specific station
+function sendToStation(stationId: number, type: string, payload: any) {
+  const message = JSON.stringify({ type, payload });
+  
+  clients.forEach((client, id) => {
+    // Format can be "station-123" where 123 is the station ID
+    if (id === `station-${stationId}` && client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes
@@ -208,7 +247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedWallet = await storage.addToWalletBalance(userId, amount);
       
       // Create a transaction for the top-up
-      await storage.createTransaction({
+      const transaction = await storage.createTransaction({
         transactionId: `TOP-${Date.now()}`,
         userId,
         vehicleId: null,
@@ -223,6 +262,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       console.log("Wallet topped up successfully:", updatedWallet);
+      
+      // Send real-time notification to user about wallet top-up
+      sendToUser(userId, 'wallet_updated', { 
+        wallet: updatedWallet,
+        transaction,
+        message: `Your wallet has been topped up with ₹${amount.toFixed(2)}`
+      });
+      
       res.json(updatedWallet);
     } catch (error) {
       console.error("Error during top-up:", error);
@@ -396,6 +443,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "completed",
       });
       
+      // Get station details for notification
+      const station = await storage.getFuelStation(stationId);
+      
+      // Send real-time notification to user about transaction
+      sendToUser(userId, 'transaction_completed', {
+        transaction,
+        stationName: station?.name || 'Fuel Station',
+        message: `Your payment of ₹${totalAmount.toFixed(2)} for ${quantity} L of ${fuelType} fuel has been processed.`
+      });
+      
+      // Send real-time notification to station about transaction
+      sendToStation(stationId, 'transaction_completed', {
+        transaction,
+        message: `Fuel transaction completed for ${quantity} L of ${fuelType}.`
+      });
+      
       res.status(201).json(transaction);
     } catch (error) {
       res.status(500).json({ error: "Failed to complete transaction" });
@@ -403,5 +466,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Set up WebSocket server for real-time communication
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  wss.on('connection', (ws, req) => {
+    console.log('WebSocket client connected');
+    
+    // Extract client type and ID from URL query params
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    const clientType = url.searchParams.get('clientType') || 'anonymous';
+    const clientId = url.searchParams.get('clientId') || 'unknown';
+    const clientKey = `${clientType}-${clientId}`;
+    
+    // Store the client connection with its identifier
+    clients.set(clientKey, ws);
+    
+    // Send a welcome message to the client
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      payload: {
+        message: 'Connected to RFID Payment System WebSocket server',
+        clientType,
+        clientId
+      }
+    }));
+    
+    // Handle incoming messages from clients
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('WebSocket message received:', data);
+        
+        // Handle different message types
+        switch (data.type) {
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+            break;
+            
+          case 'station_status_update':
+            // Broadcast station status updates to all connected clients
+            broadcastMessage('station_status_update', data.payload);
+            break;
+            
+          case 'rfid_scan':
+            // When a station scans an RFID tag, process it
+            const { stationId, tagNumber } = data.payload;
+            if (stationId && tagNumber) {
+              // This would trigger the RFID scan API in a real implementation
+              console.log(`RFID tag ${tagNumber} scanned at station ${stationId}`);
+            }
+            break;
+            
+          default:
+            console.log(`Unhandled message type: ${data.type}`);
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
+      }
+    });
+    
+    // Handle client disconnect
+    ws.on('close', () => {
+      console.log(`WebSocket client ${clientKey} disconnected`);
+      clients.delete(clientKey);
+    });
+  });
+  
   return httpServer;
 }
