@@ -63,10 +63,13 @@ export function setupAuth(app: Express) {
   });
 
   // Extended registration schema with validation
-  const registerSchema = insertUserSchema.extend({
-    confirmPassword: z.string(),
-    phone: z.string().regex(/^\d{10}$/, "Phone number must be 10 digits"),
+  const registerSchema = z.object({
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    name: z.string().min(1, "Name is required"),
     email: z.string().email("Invalid email address"),
+    phone: z.string().regex(/^\d{10}$/, "Phone number must be 10 digits"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
   }).refine(data => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
