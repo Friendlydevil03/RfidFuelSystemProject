@@ -333,6 +333,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const transaction = await storage.createTransaction(validatedData);
+      
+      // Send real-time notification about the new transaction
+      if (transaction.userId) {
+        sendToUser(transaction.userId, 'transaction_completed', {
+          transaction,
+          message: `Transaction of ₹${transaction.totalAmount} completed for ${transaction.fuelType} fuel`
+        });
+      }
+      
+      // If this is for a station, also notify the station
+      if (transaction.stationId) {
+        sendToStation(transaction.stationId, 'transaction_completed', {
+          transaction,
+          message: `New transaction completed: ${transaction.totalAmount} for ${transaction.quantity} liters of ${transaction.fuelType}`
+        });
+      }
+      
       res.status(201).json(transaction);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -501,7 +518,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle different message types
         switch (data.type) {
           case 'ping':
+            // Send back a pong response
             ws.send(JSON.stringify({ type: 'pong', payload: { timestamp: Date.now() } }));
+            
+            // Also send a notification message to demonstrate real-time updates
+            setTimeout(() => {
+              ws.send(JSON.stringify({ 
+                type: 'notification', 
+                payload: { 
+                  title: "Real-time System Active",
+                  message: "Your real-time connection is working correctly! You'll receive instant updates for transactions and wallet changes.", 
+                  timestamp: Date.now() 
+                } 
+              }));
+            }, 1000); // Slight delay for better UX
             break;
             
           case 'station_status_update':
