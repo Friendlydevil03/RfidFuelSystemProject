@@ -120,8 +120,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      // Generate a random tag number
-      const tagNumber = `FT${Math.floor(Math.random() * 10000000)}`;
+      // Generate a standardized RFID tag number
+      // Format: FP (Fuel Payment) + YY (Year) + MM (Month) + XXXXX (5 digit sequence)
+      const date = new Date();
+      const year = date.getFullYear().toString().slice(-2);
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const sequence = Math.floor(10000 + Math.random() * 90000); // 5 digit number
+      const tagNumber = `FP${year}${month}${sequence}`;
       
       const validatedData = insertRfidTagSchema.parse({
         vehicleId,
