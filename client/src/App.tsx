@@ -14,6 +14,7 @@ import StationReports from "@/pages/station/reports";
 import { ProtectedRoute } from "./lib/protected-route";
 import AppSwitcher from "./components/app-switcher";
 import { useEffect, useState } from "react";
+import { WebSocketProvider } from "./contexts/websocket-provider";
 
 function Router() {
   const [location] = useLocation();
@@ -57,8 +58,10 @@ function Router() {
 function App() {
   return (
     <TooltipProvider>
-      <Toaster />
-      <Router />
+      <WebSocketProvider>
+        <Toaster />
+        <Router />
+      </WebSocketProvider>
     </TooltipProvider>
   );
 }
