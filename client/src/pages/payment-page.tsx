@@ -111,13 +111,27 @@ export default function PaymentPage() {
   
   const topUpWalletMutation = useMutation({
     mutationFn: async (data: TopUpWalletFormValues) => {
+      console.log("Submitting top-up form with data:", data);
+      
+      // Ensure all required fields are present
+      if (!data.amount || !data.paymentMethodId) {
+        throw new Error("Amount and payment method are required");
+      }
+      
       const res = await apiRequest("POST", "/api/wallet/topup", {
-        amount: parseFloat(data.amount),
-        paymentMethodId: parseInt(data.paymentMethodId),
+        amount: data.amount,
+        paymentMethodId: data.paymentMethodId,
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to process top-up");
+      }
+      
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Top-up successful:", data);
       queryClient.invalidateQueries({ queryKey: ['/api/wallet'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
       setIsTopUpWalletOpen(false);
@@ -128,6 +142,7 @@ export default function PaymentPage() {
       });
     },
     onError: (error: Error) => {
+      console.error("Top-up error:", error);
       toast({
         title: "Failed to top up wallet",
         description: error.message,
@@ -403,8 +418,8 @@ export default function PaymentPage() {
                           {paymentMethods?.map((method) => (
                             <SelectItem key={method.id} value={method.id.toString()}>
                               {method.type === "card" 
-                                ? `Card - ${method.details.cardNumber}` 
-                                : `UPI - ${method.details.upiId}`}
+                                ? `Card - ${JSON.stringify(method.details).includes('cardNumber') ? (method.details as any).cardNumber : 'Card'}` 
+                                : `UPI - ${JSON.stringify(method.details).includes('upiId') ? (method.details as any).upiId : 'ID'}`}
                             </SelectItem>
                           ))}
                         </SelectContent>

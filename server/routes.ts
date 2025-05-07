@@ -176,10 +176,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.status(401).send("Unauthorized");
     
     const userId = req.user!.id;
-    const amount = parseFloat(req.body.amount);
+    
+    // Log the request body to help with debugging
+    console.log("Top-up request received:", req.body);
+    
+    // Handle amount as either string or number
+    const amount = typeof req.body.amount === 'string' 
+      ? parseFloat(req.body.amount) 
+      : req.body.amount;
     
     if (isNaN(amount) || amount <= 0) {
       return res.status(400).json({ error: "Invalid amount" });
+    }
+    
+    // Convert paymentMethodId to number if it's a string
+    const paymentMethodId = typeof req.body.paymentMethodId === 'string'
+      ? parseInt(req.body.paymentMethodId, 10)
+      : req.body.paymentMethodId;
+      
+    if (isNaN(paymentMethodId)) {
+      return res.status(400).json({ error: "Invalid payment method" });
     }
     
     const wallet = await storage.getWalletByUser(userId);
@@ -188,24 +204,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "Wallet not found" });
     }
     
-    const updatedWallet = await storage.addToWalletBalance(userId, amount);
-    
-    // Create a transaction for the top-up
-    await storage.createTransaction({
-      transactionId: `TOP-${Date.now()}`,
-      userId,
-      vehicleId: null,
-      stationId: null,
-      fuelType: "N/A",
-      quantity: 0,
-      pricePerUnit: 0,
-      totalAmount: amount,
-      paymentMethodId: req.body.paymentMethodId || null,
-      paymentType: "topup",
-      status: "completed",
-    });
-    
-    res.json(updatedWallet);
+    try {
+      const updatedWallet = await storage.addToWalletBalance(userId, amount);
+      
+      // Create a transaction for the top-up
+      await storage.createTransaction({
+        transactionId: `TOP-${Date.now()}`,
+        userId,
+        vehicleId: null,
+        stationId: null,
+        fuelType: "N/A",
+        quantity: "0",
+        pricePerUnit: "0",
+        totalAmount: amount.toString(),
+        paymentMethodId: paymentMethodId,
+        paymentType: "topup",
+        status: "completed",
+      });
+      
+      console.log("Wallet topped up successfully:", updatedWallet);
+      res.json(updatedWallet);
+    } catch (error) {
+      console.error("Error during top-up:", error);
+      res.status(500).json({ error: "Failed to top up wallet" });
+    }
   });
 
   app.put("/api/wallet/settings", async (req: Request, res: Response) => {
@@ -368,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fuelType,
         quantity,
         pricePerUnit,
-        totalAmount,
+        totalAmount: totalAmount.toString(),
         paymentMethodId: req.body.paymentMethodId || null,
         paymentType,
         status: "completed",

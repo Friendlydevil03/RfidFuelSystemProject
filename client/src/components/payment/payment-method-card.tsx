@@ -19,12 +19,16 @@ export default function PaymentMethodCard({ method }: PaymentMethodCardProps) {
   // Get masked card number or UPI ID
   const getDisplayInfo = () => {
     if (isCard) {
-      const cardNumber = method.details.cardNumber;
+      // Safely access card details with type assertion
+      const details = method.details as any;
+      const cardNumber = details?.cardNumber || "****************";
       const last4 = cardNumber.slice(-4);
       const issuer = getCardIssuer(cardNumber);
       return `${issuer} **** ${last4}`;
     } else {
-      return method.details.upiId;
+      // Safely access UPI details with type assertion
+      const details = method.details as any;
+      return details?.upiId || "UPI ID";
     }
   };
   
@@ -50,7 +54,7 @@ export default function PaymentMethodCard({ method }: PaymentMethodCardProps) {
           </div>
           <div>
             <h4 className="font-medium">
-              {isCard ? getCardIssuer(method.details.cardNumber) : "UPI"}
+              {isCard ? getCardIssuer((method.details as any)?.cardNumber || "") : "UPI"}
             </h4>
             <p className="text-sm text-neutral-500">{getDisplayInfo()}</p>
           </div>
