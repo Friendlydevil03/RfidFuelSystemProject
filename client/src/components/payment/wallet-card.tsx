@@ -2,18 +2,28 @@ import { Button } from "@/components/ui/button";
 import { History, ArrowUpCircle, Gift } from "lucide-react";
 
 interface WalletCardProps {
-  balance: number;
+  balance: string | number;
   onTopUp: () => void;
 }
 
 export default function WalletCard({ balance, onTopUp }: WalletCardProps) {
+  // Format the balance properly regardless of whether it's a string or number
+  const formatBalance = () => {
+    if (typeof balance === 'string') {
+      return parseFloat(balance).toFixed(2);
+    } else if (typeof balance === 'number') {
+      return balance.toFixed(2);
+    }
+    return '0.00'; // Fallback value
+  };
+  
   return (
     <div className="bg-gradient-to-r from-secondary to-primary rounded-xl shadow-lg p-6 text-white mb-8">
       <h3 className="text-lg font-medium mb-4">FuelTag Wallet</h3>
       <div className="flex justify-between items-center mb-6">
         <div>
           <p className="text-sm opacity-80">Available Balance</p>
-          <h3 className="text-3xl font-medium">₹{balance.toFixed(2)}</h3>
+          <h3 className="text-3xl font-medium">₹{formatBalance()}</h3>
         </div>
         <Button 
           onClick={onTopUp}
