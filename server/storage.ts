@@ -1,7 +1,11 @@
 import { users, User, InsertUser, vehicles, Vehicle, InsertVehicle, rfidTags, RfidTag, InsertRfidTag, fuelStations, FuelStation, InsertFuelStation, fuelPrices, FuelPrice, InsertFuelPrice, paymentMethods, PaymentMethod, InsertPaymentMethod, wallets, Wallet, InsertWallet, transactions, Transaction, InsertTransaction } from "@shared/schema";
 import createMemoryStore from "memorystore";
 import session from "express-session";
-import { v4 as uuidv4 } from "crypto";
+import { v4 as uuidv4 } from "uuid";
+import { db } from "./db";
+import { eq, and, gte, lte, or, desc, sql } from "drizzle-orm";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
 // Configure memory store for sessions
 const MemoryStore = createMemoryStore(session);
@@ -62,7 +66,7 @@ export interface IStorage {
   updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
 
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: any; // Using any type for SessionStore to avoid importing issues
 }
 
 export class MemStorage implements IStorage {
@@ -486,4 +490,306 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database-backed storage implementation
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.SessionStore;
+
+  constructor() {
+    const PgStore = connectPg(session);
+    this.sessionStore = new PgStore({
+      pool,
+      tableName: 'session',
+      createTableIfMissing: true,
+    });
+  }
+
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values({
+      ...insertUser,
+      createdAt: new Date(),
+    }).returning();
+    
+    // Create a wallet for the user
+    await this.createWallet({
+      userId: user.id,
+      balance: 0,
+      autoReloadEnabled: false,
+      autoReloadThreshold: null,
+      autoReloadAmount: null,
+      autoReloadPaymentMethodId: null,
+    });
+    
+    return user;
+  }
+
+  // Vehicle operations
+  async getVehicle(id: number): Promise<Vehicle | undefined> {
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
+    return vehicle;
+  }
+
+  async getVehiclesByUser(userId: number): Promise<Vehicle[]> {
+    return await db.select().from(vehicles).where(eq(vehicles.userId, userId));
+  }
+
+  async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
+    const [vehicle] = await db.insert(vehicles).values({
+      ...insertVehicle,
+      createdAt: new Date(),
+    }).returning();
+    return vehicle;
+  }
+
+  async updateVehicle(id: number, vehicle: Partial<InsertVehicle>): Promise<Vehicle | undefined> {
+    const [updatedVehicle] = await db.update(vehicles)
+      .set(vehicle)
+      .where(eq(vehicles.id, id))
+      .returning();
+    return updatedVehicle;
+  }
+
+  async deleteVehicle(id: number): Promise<boolean> {
+    const result = await db.delete(vehicles).where(eq(vehicles.id, id));
+    return result.rowCount > 0;
+  }
+
+  // RFID tag operations
+  async getRfidTag(id: number): Promise<RfidTag | undefined> {
+    const [tag] = await db.select().from(rfidTags).where(eq(rfidTags.id, id));
+    return tag;
+  }
+
+  async getRfidTagByNumber(tagNumber: string): Promise<RfidTag | undefined> {
+    const [tag] = await db.select().from(rfidTags).where(eq(rfidTags.tagNumber, tagNumber));
+    return tag;
+  }
+
+  async getRfidTagsByVehicle(vehicleId: number): Promise<RfidTag[]> {
+    return await db.select().from(rfidTags).where(eq(rfidTags.vehicleId, vehicleId));
+  }
+
+  async createRfidTag(insertTag: InsertRfidTag): Promise<RfidTag> {
+    const [tag] = await db.insert(rfidTags).values({
+      ...insertTag,
+      createdAt: new Date(),
+    }).returning();
+    return tag;
+  }
+
+  async updateRfidTag(id: number, tag: Partial<InsertRfidTag>): Promise<RfidTag | undefined> {
+    const [updatedTag] = await db.update(rfidTags)
+      .set(tag)
+      .where(eq(rfidTags.id, id))
+      .returning();
+    return updatedTag;
+  }
+
+  // Fuel station operations
+  async getFuelStation(id: number): Promise<FuelStation | undefined> {
+    const [station] = await db.select().from(fuelStations).where(eq(fuelStations.id, id));
+    return station;
+  }
+
+  async getAllFuelStations(): Promise<FuelStation[]> {
+    return await db.select().from(fuelStations);
+  }
+
+  async getNearbyFuelStations(lat: number, lng: number, radius: number): Promise<FuelStation[]> {
+    // A simple approximation - in reality you'd use a geospatial index
+    // This is just getting all stations which is fine for a demo
+    return await db.select().from(fuelStations);
+  }
+
+  async createFuelStation(insertStation: InsertFuelStation): Promise<FuelStation> {
+    const [station] = await db.insert(fuelStations).values({
+      ...insertStation,
+      createdAt: new Date(),
+    }).returning();
+    return station;
+  }
+
+  // Fuel price operations
+  async getFuelPrice(id: number): Promise<FuelPrice | undefined> {
+    const [price] = await db.select().from(fuelPrices).where(eq(fuelPrices.id, id));
+    return price;
+  }
+
+  async getFuelPricesByStation(stationId: number): Promise<FuelPrice[]> {
+    return await db.select().from(fuelPrices).where(eq(fuelPrices.stationId, stationId));
+  }
+
+  async createFuelPrice(insertPrice: InsertFuelPrice): Promise<FuelPrice> {
+    const [price] = await db.insert(fuelPrices).values(insertPrice).returning();
+    return price;
+  }
+
+  // Payment method operations
+  async getPaymentMethod(id: number): Promise<PaymentMethod | undefined> {
+    const [method] = await db.select().from(paymentMethods).where(eq(paymentMethods.id, id));
+    return method;
+  }
+
+  async getPaymentMethodsByUser(userId: number): Promise<PaymentMethod[]> {
+    return await db.select().from(paymentMethods).where(eq(paymentMethods.userId, userId));
+  }
+
+  async getDefaultPaymentMethod(userId: number): Promise<PaymentMethod | undefined> {
+    const [method] = await db.select().from(paymentMethods)
+      .where(and(
+        eq(paymentMethods.userId, userId),
+        eq(paymentMethods.isDefault, true)
+      ));
+    return method;
+  }
+
+  async createPaymentMethod(insertMethod: InsertPaymentMethod): Promise<PaymentMethod> {
+    // If this is marked as default, remove default from other payment methods
+    if (insertMethod.isDefault) {
+      await db.update(paymentMethods)
+        .set({ isDefault: false })
+        .where(and(
+          eq(paymentMethods.userId, insertMethod.userId),
+          eq(paymentMethods.isDefault, true)
+        ));
+    }
+    
+    const [method] = await db.insert(paymentMethods).values({
+      ...insertMethod,
+      createdAt: new Date(),
+    }).returning();
+    
+    return method;
+  }
+
+  async updatePaymentMethod(id: number, method: Partial<InsertPaymentMethod>): Promise<PaymentMethod | undefined> {
+    // If updating to make this the default, remove default from others
+    if (method.isDefault) {
+      const [existingMethod] = await db.select().from(paymentMethods).where(eq(paymentMethods.id, id));
+      if (existingMethod) {
+        await db.update(paymentMethods)
+          .set({ isDefault: false })
+          .where(and(
+            eq(paymentMethods.userId, existingMethod.userId),
+            eq(paymentMethods.isDefault, true),
+            sql`${paymentMethods.id} != ${id}`
+          ));
+      }
+    }
+    
+    const [updatedMethod] = await db.update(paymentMethods)
+      .set(method)
+      .where(eq(paymentMethods.id, id))
+      .returning();
+    
+    return updatedMethod;
+  }
+
+  async deletePaymentMethod(id: number): Promise<boolean> {
+    const result = await db.delete(paymentMethods).where(eq(paymentMethods.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Wallet operations
+  async getWallet(id: number): Promise<Wallet | undefined> {
+    const [wallet] = await db.select().from(wallets).where(eq(wallets.id, id));
+    return wallet;
+  }
+
+  async getWalletByUser(userId: number): Promise<Wallet | undefined> {
+    const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId));
+    return wallet;
+  }
+
+  async createWallet(insertWallet: InsertWallet): Promise<Wallet> {
+    const now = new Date();
+    const [wallet] = await db.insert(wallets).values({
+      ...insertWallet,
+      createdAt: now,
+      updatedAt: now,
+    }).returning();
+    return wallet;
+  }
+
+  async updateWallet(id: number, wallet: Partial<InsertWallet>): Promise<Wallet | undefined> {
+    const [updatedWallet] = await db.update(wallets)
+      .set({
+        ...wallet,
+        updatedAt: new Date(),
+      })
+      .where(eq(wallets.id, id))
+      .returning();
+    
+    return updatedWallet;
+  }
+
+  async addToWalletBalance(userId: number, amount: number): Promise<Wallet | undefined> {
+    const wallet = await this.getWalletByUser(userId);
+    if (!wallet) return undefined;
+    
+    const newBalance = Number(wallet.balance) + amount;
+    return this.updateWallet(wallet.id, { balance: newBalance });
+  }
+
+  // Transaction operations
+  async getTransaction(id: number): Promise<Transaction | undefined> {
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.id, id));
+    return transaction;
+  }
+
+  async getTransactionByTransactionId(transactionId: string): Promise<Transaction | undefined> {
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.transactionId, transactionId));
+    return transaction;
+  }
+
+  async getTransactionsByUser(userId: number): Promise<Transaction[]> {
+    return await db.select().from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.timestamp));
+  }
+
+  async getTransactionsByVehicle(vehicleId: number): Promise<Transaction[]> {
+    return await db.select().from(transactions)
+      .where(eq(transactions.vehicleId, vehicleId))
+      .orderBy(desc(transactions.timestamp));
+  }
+
+  async getTransactionsByStation(stationId: number): Promise<Transaction[]> {
+    return await db.select().from(transactions)
+      .where(eq(transactions.stationId, stationId))
+      .orderBy(desc(transactions.timestamp));
+  }
+
+  async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
+    const transactionId = insertTransaction.transactionId || `FT-${Date.now()}`;
+    
+    const [transaction] = await db.insert(transactions).values({
+      ...insertTransaction,
+      transactionId,
+      timestamp: new Date(),
+    }).returning();
+    
+    return transaction;
+  }
+
+  async updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined> {
+    const [updatedTransaction] = await db.update(transactions)
+      .set(transaction)
+      .where(eq(transactions.id, id))
+      .returning();
+    
+    return updatedTransaction;
+  }
+}
+
+export const storage = new DatabaseStorage();
