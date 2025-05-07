@@ -72,7 +72,8 @@ export function setupAuth(app: Express) {
   });
 
   // Extended registration schema with validation
-  const registerSchema = z.object({
+  // Client form schema (includes confirmPassword)
+  const registerClientSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
     name: z.string().min(1, "Name is required"),
     email: z.string().email("Invalid email address"),
@@ -82,6 +83,15 @@ export function setupAuth(app: Express) {
   }).refine(data => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
+  });
+
+  // API schema (excludes confirmPassword)
+  const registerSchema = z.object({
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    name: z.string().min(1, "Name is required"),
+    email: z.string().email("Invalid email address"),
+    phone: z.string().regex(/^\d{10}$/, "Phone number must be 10 digits"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
   });
 
   app.post("/api/register", async (req, res, next) => {
