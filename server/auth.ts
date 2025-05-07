@@ -86,14 +86,19 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      console.log("Received registration request with body:", req.body);
+      
       // Validate input
       const validatedData = registerSchema.parse(req.body);
+      console.log("Validation successful, data:", validatedData);
       
       const existingUser = await storage.getUserByUsername(validatedData.username);
       if (existingUser) {
+        console.log("Username already exists:", validatedData.username);
         return res.status(400).send("Username already exists");
       }
 
+      console.log("Creating user in database...");
       const user = await storage.createUser({
         username: validatedData.username,
         password: await hashPassword(validatedData.password),
@@ -101,15 +106,22 @@ export function setupAuth(app: Express) {
         email: validatedData.email,
         phone: validatedData.phone,
       });
+      console.log("User created:", user.id);
 
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.log("Login error:", err);
+          return next(err);
+        }
         // Return user data without password
         const { password, ...userWithoutPassword } = user;
+        console.log("Registration complete, returning user data");
         res.status(201).json(userWithoutPassword);
       });
     } catch (error) {
+      console.log("Registration error:", error);
       if (error instanceof z.ZodError) {
+        console.log("Validation error:", error.errors);
         return res.status(400).json({ error: error.errors });
       }
       next(error);

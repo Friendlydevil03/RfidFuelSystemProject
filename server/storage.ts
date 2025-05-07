@@ -515,22 +515,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values({
-      ...insertUser,
-      createdAt: new Date(),
-    }).returning();
+    console.log("DatabaseStorage createUser called with:", insertUser);
     
-    // Create a wallet for the user
-    await this.createWallet({
-      userId: user.id,
-      balance: 0,
-      autoReloadEnabled: false,
-      autoReloadThreshold: null,
-      autoReloadAmount: null,
-      autoReloadPaymentMethodId: null,
-    });
-    
-    return user;
+    try {
+      const [user] = await db.insert(users).values({
+        ...insertUser,
+        createdAt: new Date(),
+      }).returning();
+      
+      console.log("User created in database:", user);
+      
+      // Create a wallet for the user
+      try {
+        const wallet = await this.createWallet({
+          userId: user.id,
+          balance: "0",
+          autoReloadEnabled: false,
+          autoReloadThreshold: null,
+          autoReloadAmount: null,
+          autoReloadPaymentMethodId: null,
+        });
+        console.log("Wallet created for user:", wallet);
+      } catch (error) {
+        console.error("Error creating wallet:", error);
+      }
+      
+      return user;
+    } catch (error) {
+      console.error("Error in createUser:", error);
+      throw error;
+    }
   }
 
   // Vehicle operations
