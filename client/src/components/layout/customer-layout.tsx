@@ -2,6 +2,7 @@ import { Link, useRoute } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Fuel, Bell, User, Home, Car, CreditCard, ReceiptText, Map } from "lucide-react";
+import { WebSocketStatus } from "@/components/ui/websocket-status";
 
 type NavItem = {
   name: string;
@@ -30,7 +31,8 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             <h1 className="text-xl font-medium">FuelTag</h1>
           </div>
           <div className="flex items-center">
-            <Button variant="ghost" size="icon">
+            <WebSocketStatus />
+            <Button variant="ghost" size="icon" className="ml-2">
               <Bell className="h-5 w-5" />
             </Button>
             <div className="w-8 h-8 bg-neutral-300 rounded-full ml-4 flex items-center justify-center">

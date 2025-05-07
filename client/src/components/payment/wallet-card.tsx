@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { History, ArrowUpCircle, Gift } from "lucide-react";
+import { History, ArrowUpCircle, Gift, Wifi } from "lucide-react";
+import { useWebSocketContext } from "@/contexts/websocket-provider";
 
 interface WalletCardProps {
   balance: string | number;
@@ -7,6 +8,8 @@ interface WalletCardProps {
 }
 
 export default function WalletCard({ balance, onTopUp }: WalletCardProps) {
+  const { sendMessage, status } = useWebSocketContext();
+  
   // Format the balance properly regardless of whether it's a string or number
   const formatBalance = () => {
     if (typeof balance === 'string') {
@@ -15,6 +18,11 @@ export default function WalletCard({ balance, onTopUp }: WalletCardProps) {
       return balance.toFixed(2);
     }
     return '0.00'; // Fallback value
+  };
+  
+  // Test real-time communication by sending a ping to the server
+  const testRealTime = () => {
+    sendMessage('ping', { timestamp: Date.now() });
   };
   
   return (
@@ -41,9 +49,16 @@ export default function WalletCard({ balance, onTopUp }: WalletCardProps) {
           <ArrowUpCircle className="mb-1 h-5 w-5" />
           <span>Auto Reload</span>
         </div>
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center mr-6">
           <Gift className="mb-1 h-5 w-5" />
           <span>Rewards</span>
+        </div>
+        <div 
+          className="flex flex-col items-center cursor-pointer" 
+          onClick={testRealTime}
+        >
+          <Wifi className={`mb-1 h-5 w-5 ${status === 'connected' ? 'text-green-300' : status === 'connecting' ? 'text-yellow-300 animate-pulse' : 'text-red-300'}`} />
+          <span>Real-time</span>
         </div>
       </div>
     </div>

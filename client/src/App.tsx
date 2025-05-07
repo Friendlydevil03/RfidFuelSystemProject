@@ -15,6 +15,7 @@ import { ProtectedRoute } from "./lib/protected-route";
 import AppSwitcher from "./components/app-switcher";
 import { useEffect, useState } from "react";
 import { WebSocketProvider } from "./contexts/websocket-provider";
+import { WebSocketNotifications } from "./components/ui/websocket-notifications";
 
 function Router() {
   const [location] = useLocation();
@@ -60,6 +61,7 @@ function App() {
     <TooltipProvider>
       <WebSocketProvider>
         <Toaster />
+        <WebSocketNotifications />
         <Router />
       </WebSocketProvider>
     </TooltipProvider>
