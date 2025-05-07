@@ -86,25 +86,33 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      console.log("Received registration request with body:", req.body);
+      console.log("Received registration request with body:", JSON.stringify(req.body, null, 2));
       
-      // Validate input
-      const validatedData = registerSchema.parse(req.body);
-      console.log("Validation successful, data:", validatedData);
+      // Deconstruct and validate input before using anywhere
+      const { confirmPassword, ...registrationData } = req.body;
       
-      const existingUser = await storage.getUserByUsername(validatedData.username);
+      // First validate the registration data
+      try {
+        registerSchema.parse(req.body);
+        console.log("Validation successful");
+      } catch (error) {
+        console.error("Validation failed:", error);
+        throw error;
+      }
+      
+      const existingUser = await storage.getUserByUsername(registrationData.username);
       if (existingUser) {
-        console.log("Username already exists:", validatedData.username);
+        console.log("Username already exists:", registrationData.username);
         return res.status(400).send("Username already exists");
       }
 
       console.log("Creating user in database...");
       const user = await storage.createUser({
-        username: validatedData.username,
-        password: await hashPassword(validatedData.password),
-        name: validatedData.name,
-        email: validatedData.email,
-        phone: validatedData.phone,
+        username: registrationData.username,
+        password: await hashPassword(registrationData.password),
+        name: registrationData.name,
+        email: registrationData.email,
+        phone: registrationData.phone,
       });
       console.log("User created:", user.id);
 
