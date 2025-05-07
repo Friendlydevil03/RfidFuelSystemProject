@@ -1,0 +1,161 @@
+Develop a complete RFID-based fuel payment system with two interconnected applications:
+
+Customer mobile application (iOS & Android)
+Fuel station terminal application (tablet/desktop-based)
+The system will facilitate contactless payments at fuel stations using RFID technology similar to FASTag implementation, prioritizing security, speed, and convenience.
+
+Technical Requirements
+1. Backend Infrastructure
+Code
+Architecture: Microservices
+Primary Language: Node.js with TypeScript
+Database: PostgreSQL for transactional data, MongoDB for logs/analytics
+API: RESTful + GraphQL endpoints
+Authentication: JWT with OAuth2.0
+Cloud Hosting: AWS (EC2, Lambda, S3, CloudFront)
+CI/CD: GitHub Actions with Docker containerization
+Monitoring: Prometheus + Grafana
+2. Customer Mobile Application
+Code
+Framework: Flutter for cross-platform deployment
+State Management: BLoC pattern
+Local Storage: Secure SQLite implementation
+Features:
+- User registration with KYC integration
+- Vehicle management (multiple vehicles per user)
+- RFID tag activation and pairing
+- Payment methods management (credit/debit/wallet)
+- Transaction history with digital receipts
+- Fuel consumption analytics
+- Nearby station locator with real-time pricing
+- Push notifications for successful transactions
+- Biometric authentication
+3. Fuel Station Application
+Code
+Framework: Electron for cross-platform desktop support
+UI: React with Material UI components
+Hardware Integration:
+- RFID reader (UHF frequency range)
+- POS system compatibility
+- Receipt printer integration
+- Offline capability with sync
+Features:
+- Station staff authentication
+- Real-time transaction processing
+- Fuel dispensing authorization
+- Daily/weekly/monthly reports
+- Inventory management integration
+- Settlement and reconciliation tools
+4. RFID System
+Code
+Tag Type: Passive UHF RFID (860-960 MHz)
+Read Range: 3-5 meters
+Encryption: AES-256 for data security
+Tag Data Structure:
+- Unique identifier
+- Vehicle information hash
+- Security checksum
+- Version control bits
+Middleware: Custom integration layer between readers and application
+5. Payment Processing
+Code
+Payment Gateway: Stripe for global markets, additional local gateways per region
+Wallet System: Built-in with auto-reload capability
+Transaction Flow:
+- Pre-authorization at tag read
+- Amount confirmation after fueling
+- Receipt generation and notification
+- Settlement processing
+Security: PCI DSS compliance requirements
+API Endpoints Structure
+Implement the following core API endpoints:
+
+Code
+/auth
+  /register
+  /login
+  /refresh-token
+  /verify-otp
+
+/users
+  /profile
+  /vehicles
+  /payment-methods
+  /transactions
+  /preferences
+
+/vehicles
+  /register
+  /assign-tag
+  /deactivate-tag
+  /verification
+
+/stations
+  /nearby
+  /details
+  /pricing
+  /reviews
+
+/transactions
+  /initiate
+  /authorize
+  /complete
+  /history
+  /receipt
+  /dispute
+
+/admin
+  /reports
+  /analytics
+  /user-management
+  /station-management
+Database Schema
+Design the database with these core entities:
+
+Code
+Users
+  - id, name, email, phone, created_at, etc.
+  - authentication_details
+  - kyc_information
+
+Vehicles
+  - id, user_id, make, model, registration_number, etc.
+  - rfid_tag_details
+
+RFIDTags
+  - id, tag_number, status, assigned_vehicle, encryption_keys
+
+Stations
+  - id, name, location, owner_details, operational_hours
+  - supported_payment_methods
+  - fuel_types_and_pricing
+
+Transactions
+  - id, user_id, vehicle_id, station_id, amount, timestamp
+  - status, payment_method, receipt_url
+  - fuel_quantity, fuel_type, price_per_unit
+
+Payments
+  - id, transaction_id, payment_gateway_response
+  - status, refund_details
+
+Wallets
+  - id, user_id, balance, currency, status
+  - transaction_history
+Security Requirements
+Code
+- Implement end-to-end encryption for all payment data
+- Store sensitive data in secure vaults (AWS KMS/Secrets Manager)
+- Use secure HTTPS connections with TLS 1.3
+- Apply rate limiting to prevent brute force attacks
+- Implement OWASP top 10 security recommendations
+- Regular security audits and penetration testing
+- Data anonymization for analytics purposes
+Testing Strategy
+Code
+Unit Testing: 90% code coverage minimum
+Integration Testing: API endpoints and service interactions
+E2E Testing: Critical user flows on both applications
+Performance Testing: Load testing for 10,000+ concurrent transactions
+Security Testing: Regular vulnerability scanning
+Usability Testing: With actual fuel station operators and drivers
